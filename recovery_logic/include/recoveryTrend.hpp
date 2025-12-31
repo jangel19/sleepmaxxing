@@ -20,5 +20,4 @@ struct RecoverySummary {
 };
 
 
-bool qualityControl(const WindowComparison& wc);
 RecoverySummary compute_recovery_trend(const std::vector<DayRecord>& days);
