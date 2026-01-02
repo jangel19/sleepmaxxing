@@ -1,4 +1,5 @@
 #pragma once
 #include "recoveryTrend.hpp"
+#include "circadianShift.hpp"
 
-std::string explain_rec(const RecoverySummary& summary);
+std::vector<std::string> generate_recommendations(const RecoverySummary& rec, const CircadianShift& circ);
