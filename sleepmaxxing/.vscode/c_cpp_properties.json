@@ -1,0 +1,31 @@
+{
+  "version": 4,
+  "configurations": [
+    {
+      "name": "Mac-GCC-15-Homebrew",
+      "compilerPath": "/opt/homebrew/bin/g++-15",
+      "intelliSenseMode": "macos-gcc-arm64",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "compilerArgs": [
+        "-std=c++17",
+        "-I/opt/homebrew/opt/armadillo/include",
+        "-I/opt/homebrew/opt/ensmallen/include",
+        "-I/opt/homebrew/include",
+        "-I/opt/homebrew/Cellar/mlpack/4.6.2_1/include"
+      ],
+      "includePath": [
+        "${workspaceFolder}/**"
+      ],
+      "browse": {
+        "path": [
+          "${workspaceFolder}",
+          "/opt/homebrew/include",
+          "/opt/homebrew/opt/armadillo/include",
+          "/opt/homebrew/opt/ensmallen/include",
+          "/opt/homebrew/Cellar/mlpack/4.6.2_1/include"
+        ]
+      }
+    }
+  ]
+}
