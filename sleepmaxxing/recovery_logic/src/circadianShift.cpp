@@ -14,10 +14,17 @@ CircadianShift compute_circadian_shift(const std::vector<DayRecord> &days) {
     CircadianShift result{};
 
     const size_t N = days.size();
+    // safety
+    if (N == 0) {
+        result.shift_hours = 0.0;
+        result.significant = false;
+        return result;
+    }
+
     // sliceeeee into two windows
-    size_t recent_begin = std::max<size_t>(0, N - 14);
+    size_t recent_begin = (N > 14) ? (N - 14) : 0;
     size_t recent_end = N;
-    size_t baseline_begin = std::max<size_t>(0, recent_begin - 14);
+    size_t baseline_begin = (recent_begin > 14) ? (recent_begin - 14) : 0;
     size_t baseline_end = recent_begin;
 
     size_t baseline_days = 0;

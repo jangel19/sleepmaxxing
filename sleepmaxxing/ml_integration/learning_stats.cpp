@@ -7,8 +7,11 @@
 std::string model_learning_sum() {
     auto errors = load_pred_errors();
 
-    if (errors.size() < 3) return "Model learning status: \n not enough historical data\n";
-
+    if (errors.empty()) {
+        return "Model learning status:\n"
+        "- Baseline collected\n"
+        "- Awaiting first evaluation window\n";
+    }
     // adds everything
     double early_avg = std::accumulate(errors.begin(), errors.begin() + errors.size() / 2, 0.0) /
         (errors.size() / 2);
@@ -49,7 +52,7 @@ double directional_accu() {
             total++;
         } catch (...) { continue; }
     }
-    
+
     return total ? (100.0 * correct / total) : 0.0;
 
 }

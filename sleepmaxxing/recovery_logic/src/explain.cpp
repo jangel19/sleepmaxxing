@@ -16,6 +16,16 @@ std::string explain_future(const RecoverySummary& rec_sum, const CircadianShift&
 
     out << "---------------------WHAT THIS MEANS FOR YOU (ML INSIGHT)-------------------------\n\n";
 
+    if (ml.weights.n_elem > 0) {
+        out << "The model has learned preliminary personal recovery drivers "
+            "based on your last month of data.\n"
+            "Prediction accuracy will improve as future outcomes become available.\n\n";
+    } else {
+        out << "Machine learning insights are limited due to insufficient historical data.\n"
+            "As more days are logged, this system will begin identifying which physiological\n"
+            "signals most strongly influence your recovery.\n\n";
+    }
+
     if (ml.prediction < -0.5) {
         out << "Your current habits are likely suppressing recovery. \n";
     } else if (ml.prediction < 0.5) {
@@ -53,6 +63,14 @@ std::string explain_future(const RecoverySummary& rec_sum, const CircadianShift&
         }
 
         out << "\n";
+    }
+
+    if (rec_sum.trend == Trend::Stable) {
+    out <<
+        "Your recovery metrics are currently stable.\n"
+        "This suggests your current balance of sleep, stress, and activity\n"
+        "is sufficient to maintain baseline recovery.\n"
+        "Focus on consistency rather than pushing volume or intensity.\n\n";
     }
 
     // sleep driver
@@ -96,6 +114,10 @@ std::string explain_future(const RecoverySummary& rec_sum, const CircadianShift&
             "- Hormonal recovery signals may remain suppressed\n"
             "HOW TO PREVENT:\n"
             "Maintain a consistent wake time within ±30 minutes for the next week.\n\n";
+    } else {
+        out <<
+        "No significant circadian shift detected.\n"
+        "Your wake timing appears stable relative to recent history.\n\n";
     }
 
     // trend going up
@@ -103,6 +125,11 @@ std::string explain_future(const RecoverySummary& rec_sum, const CircadianShift&
         out <<
             "Your current routine supports recovery improvements.\n"
             "Avoid unnecessary changes and allow adaptations to consolidate.\n\n";
+    }
+    if (rec_sum.confidence < 0.4) {
+    out <<
+        "Confidence is currently low due to limited historical data.\n"
+        "Expect insight quality to improve after 2–3 additional weeks of logging.\n\n";
     }
 
     return out.str();

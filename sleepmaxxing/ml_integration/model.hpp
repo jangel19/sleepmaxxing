@@ -5,11 +5,15 @@
 #include "error_stats.hpp"
 #include <mlpack/core.hpp>
 #include <mlpack/methods/linear_regression/linear_regression.hpp>
-
 struct PredictionResult {
     double prediction;
     arma::vec weights;
     arma::vec features;
+};
+
+struct NormStats {
+    arma::vec mean;
+    arma::vec std;
 };
 
 void run_pipeline(std::vector<DayRecord> &days);
