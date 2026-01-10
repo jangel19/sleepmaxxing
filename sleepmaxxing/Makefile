@@ -31,7 +31,7 @@ CPP_SOURCES = \
 	ml_logger/load_predictions.cpp
 
 TARGET = sleepmaxxing
-DATA = data/myhealth.csv 2025-12-20
+DATA = data/myhealth.csv 2025-12-07
 .PHONY: all run clean
 
 all: $(TARGET)
