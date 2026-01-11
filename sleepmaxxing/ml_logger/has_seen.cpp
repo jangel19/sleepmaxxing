@@ -2,7 +2,7 @@
 #include <fstream>
 
 bool has_seen_date(const std::string& date) {
-    std::ifstream file("ml_logger/errors.csv");
+    std::ifstream file("ml_logger/training_data.csv");
     if (!file.is_open()) return false;
 
     std::string line;

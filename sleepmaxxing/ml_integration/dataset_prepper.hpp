@@ -5,8 +5,8 @@
 #include "DayRecord.hpp"
 #include <armadillo>
 
-constexpr size_t WINDOW_SIZE = 14;
-constexpr size_t LABEL_WINDOW = 14;
+constexpr size_t WINDOW_SIZE = 7;
+constexpr size_t LABEL_WINDOW = 7;
 
 struct Sample
 {

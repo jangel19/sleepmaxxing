@@ -7,294 +7,242 @@
 #include "actual_outcome.hpp"
 #include "learning_stats.hpp"
 #include "has_seen.hpp"
+#include "miniexplanation.hpp"
 
 #include <iostream>
 #include <vector>
 #include <string>
+#include <fstream>
+#include <sstream>
 
 using std::cout;
 using std::endl;
 using std::string;
 
+constexpr size_t BASELINE_DAYS = 7;
+constexpr size_t MIN_DAYS_FOR_PRED = 21;
 
-std::ostream& double_endl(std::ostream& os) {
+static std::ostream& double_endl(std::ostream& os) {
     return os << '\n' << '\n';
 }
 
-static size_t find_date_idx(const vector<DayRecord>& days, const string& date) {
-    for (size_t i = 0; i < days.size(); i++) {
-        if (days[i].date == date) return i;
+static bool evaluate_last_prediction_if_ready(
+    const std::vector<DayRecord>& days,
+    size_t run_idx
+) {
+    std::ifstream file("ml_logger/predictions.csv");
+    if (!file.is_open()) return false;
+
+    std::string line, last_line;
+    std::getline(file, line);
+
+    while (std::getline(file, line)) {
+        if (!line.empty()) last_line = line;
     }
-    return days.size();
+
+    if (last_line.empty()) return false;
+
+    std::stringstream ss(last_line);
+    std::string pred_date, pred_val;
+
+    std::getline(ss, pred_date, ',');
+    std::getline(ss, pred_val, ',');
+
+    while (!pred_date.empty() && pred_date[0] == ' ') pred_date.erase(0,1);
+    while (!pred_val.empty() && pred_val[0] == ' ') pred_val.erase(0,1);
+
+    size_t pred_idx = days.size();
+    for (size_t i = 0; i < days.size(); i++) {
+        if (days[i].date == pred_date) {
+            pred_idx = i;
+            break;
+        }
+    }
+
+    if (pred_idx == days.size()) return false;
+    if (pred_idx + LABEL_WINDOW > run_idx) return false;
+
+    double predicted = std::stod(pred_val);
+    double actual = compute_actual_hrv_delta(days, pred_date, LABEL_WINDOW);
+    if (actual == 0.0) return false;
+
+    double err = predicted - actual;
+    log_error(pred_date, predicted, actual, err);
+
+    cout << "\n------------PREVIOUS PREDICTION EVALUATION------------\n\n";
+    cout << "Prediction date: " << pred_date << endl;
+    cout << "Predicted HRV Δ: " << predicted << endl;
+    cout << "Actual HRV Δ:    " << actual << endl;
+    cout << "Prediction error: " << err << double_endl;
+
+    return true;
+}
+
+static void ensure_log_headers() {
+    {
+        std::ifstream in("ml_logger/training_data.csv");
+        if (!in.good() || in.peek() == std::ifstream::traits_type::eof()) {
+            std::ofstream out("ml_logger/training_data.csv", std::ios::app);
+            out << "date,hrv,sleep,rhr,stress,circ_shift,actual_hrv_delta\n";
+        }
+    }
+    {
+        std::ifstream in("ml_logger/errors.csv");
+        if (!in.good() || in.peek() == std::ifstream::traits_type::eof()) {
+            std::ofstream out("ml_logger/errors.csv", std::ios::app);
+            out << "date,predicted_delta,actual_delta,error\n";
+        }
+    }
+    {
+        std::ifstream in("ml_logger/predictions.csv");
+        if (!in.good() || in.peek() == std::ifstream::traits_type::eof()) {
+            std::ofstream out("ml_logger/predictions.csv", std::ios::app);
+            out << "date,predicted_delta,predicted_class\n";
+        }
+    }
 }
 
 static void print_base_message(size_t days_seen) {
     cout << "ML Status: Collecting baseline data\n";
     cout << "Days observed: " << days_seen << endl;
-    cout << "Prediction will activate after the first evaluation window completes" << double_endl;
+    cout << "Predictions activate after "
+         << MIN_DAYS_FOR_PRED << " days of logging"
+         << double_endl;
 }
+
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        std::cerr << "usage: " << argv[0] << "<path to csv> <prediction date (yyyy-mm-dd)>" << endl;
+        std::cerr << "usage: " << argv[0]
+                  << " <path to csv> <run date (yyyy-mm-dd)>" << endl;
         return 1;
     }
 
     const string csv_path = argv[1];
-    const string pred_date = argv[2];
+    const string run_date = argv[2];
 
-    vector<DayRecord> days = load_csv(csv_path);
+    ensure_log_headers();
+
+    std::vector<DayRecord> days = load_csv(csv_path);
     if (days.empty()) {
-        std::cerr << "error: no valid data loaded" << endl;
+        std::cerr << "error: no valid data loaded\n";
         return 1;
     }
 
-    cout << "Loaded " << days.size() << " days of data" << endl;
+    cout << "LOADED " << days.size() << " days of data" << endl;
 
-    // analysis time heh
     Combine result = compute_final_results(days);
 
     cout << "\n--------------RECOVERY SUMMARY-----------------" << double_endl;
+
     switch (result.rec_sum.trend) {
-        case Trend::Improving: cout << "Recovery is Improving. Keep up the Grind" << double_endl;
-            break;
-        case Trend::Stable: cout << "Recovery is Stable." << double_endl; break;
-        case Trend::Declining: cout << "Recovery is Declining. ATTENTION NEEDED" << double_endl; break;
+        case Trend::Improving: cout << "Recovery is Improving\n\n"; break;
+        case Trend::Stable:    cout << "Recovery is Stable\n\n"; break;
+        case Trend::Declining: cout << "Recovery is Declining. ATTENTION IS NEEDED" << double_endl; break;
     }
 
-    if (result.rec_sum.confidence < 0.34) cout << "Confidence: Low (limited historical data)" << double_endl;
-    else if (result.rec_sum.confidence < 0.67)/*6767lol*/ cout << "Confidence: Moderate" << double_endl;
-    else cout << "Confidence: High" << double_endl;
+    if (result.rec_sum.confidence < 0.34) cout << "CONFIDENCE: Low\n\n";
+    else if (result.rec_sum.confidence < 0.67) cout << "CONFIDENCE: Moderate\n\n";
+    else cout << "CONFIDENCE: High\n\n";
 
-    cout << "Circadian Shift" << double_endl;
-    cout << "Shift: " << result.cir_shift.shift_hours << " hours" << endl;
-    cout << (result.cir_shift.significant ? "This had a SIGNIFICANT effect on your body"
-        : "This DID NOT have a significant effect on your body") << double_endl;
+    size_t run_idx = days.size();
+    for (size_t i = 0; i < days.size(); i++) {
+        if (days[i].date == run_date) {
+            run_idx = i;
+            break;
+        }
+    }
 
-    // get the pred point
-    size_t pred_idx = find_date_idx(days, pred_date);
-    if (pred_idx == days.size()) {
-        std::cerr << "ERROR: prediction date NOT FOUND" << endl;
+    if (run_idx == days.size()) {
+        std::cerr << "ERROR: run date NOT FOUND in csv\n";
         return 1;
     }
 
-    vector<DayRecord> history(days.begin(), days.begin() + pred_idx + 1);
-    cout << "Prediction Date: " << pred_date << double_endl;
+    std::vector<DayRecord> history(days.begin(), days.begin() + run_idx + 1);
 
-    // training data log
+    cout << "Run Date: " << run_date << endl;
+    cout << "Predicting recovery over next "
+         << LABEL_WINDOW << " days" << double_endl;
+
+    // log supervised training samples
     for (size_t i = 0; i + WINDOW_SIZE + LABEL_WINDOW <= days.size(); i++) {
         const size_t anchor = i + WINDOW_SIZE - 1;
-        const string& date = days[anchor].date;
+        const string& anchor_date = days[anchor].date;
 
-        if (has_seen_date(date)) continue;
+        if (has_seen_date(anchor_date)) continue;
 
-        double y = compute_actual_hrv_delta(days, date, LABEL_WINDOW);
-        if (y == 0.0) continue;
+        double y = compute_actual_hrv_delta(days, anchor_date, LABEL_WINDOW);
+        if (std::abs(y) < 0.25) continue;
 
-        vector<DayRecord> window(days.begin() + i,  days.begin() + i + WINDOW_SIZE);
+        std::vector<DayRecord> window(days.begin() + i,
+                                      days.begin() + i + WINDOW_SIZE);
 
         arma::vec x = extract_features(window);
         if (!x.is_finite()) continue;
 
-        log_training_data(date, x, y);
+        log_training_data(anchor_date, x, y);
     }
 
-    // v1 logic (v2 will be even better i promise)
-    bool eval_ready = pred_idx + LABEL_WINDOW < days.size();
-    if (!eval_ready) {
+    if (history.size() < MIN_DAYS_FOR_PRED) {
         print_base_message(history.size());
-        cout << "ANALYSIS HAS FINISHED" << endl;
+        cout << "ANALYSIS HAS FINISHED\n";
         return 0;
     }
 
-    // ml prediction (v1 is very simple)
-    PredictionResult prediction = train_and_predict(history);
-    cout << explain_future(result.rec_sum, result.cir_shift, prediction) << double_endl;
+    // eval last weeks prediction
+    evaluate_last_prediction_if_ready(days, run_idx);
 
-    // eval
-    double actual = compute_actual_hrv_delta(days, pred_date, LABEL_WINDOW);
-    double error = prediction.prediction - actual;
+    // pred next week
+    PredictionResult pred = train_and_predict(history);
+    if (!std::isfinite(pred.prediction)) pred.prediction = 0.0;
 
-    log_error(pred_date, prediction.prediction, actual, error);
+    int pred_class = (pred.prediction >= 0.0) ? 1 : -1;
 
-    cout << "ACTUAL HRV CHANGE: " << actual << endl;
-    cout << "PREDICTION ERROR: " << error << double_endl;
+    cout << "\n---------------------ML PREDICTION-------------------------\n\n";
+    cout << "PREDICTED HRV DELTA (next "
+         << LABEL_WINDOW << " days): " << pred.prediction << double_endl;
 
-    // learning stats
+    cout << "INTERPRETATION:\n";
+    if (pred.prediction < 0) {
+        cout << "- The model expects your recovery to DECLINE over the next week.\n";
+        cout << "- An estimated drop of " << std::abs(pred.prediction)
+            << " ms in HRV suggests increased fatigue or insufficient recovery.\n";
+    } else {
+        cout << "- The model expects your recovery to IMPROVE over the next week.\n";
+        cout << "- An estimated increase of " << pred.prediction
+            << " ms in HRV suggests improving physiological resilience.\n";
+    } cout << double_endl;
+
+    log_predictions(run_date, pred.prediction, pred_class);
+
+    cout << explain_future(result.rec_sum, result.cir_shift, pred) << double_endl;
+
+    auto rec = generate_recommendations(result.rec_sum, result.cir_shift);
+
+    if (!rec.empty()) {
+        cout << "\n---------------------ACTIONABLE GUIDANCE---------------------\n\n";
+        for (const auto& r : rec) {
+            cout << "- " << r << "\n";
+        }
+        cout << "\n";
+    }
+
     cout << model_learning_sum() << endl;
-    double accuracy_ = directional_accu();
-    cout << "MACHINE LEARNING DIRECTIONAL ACCURACY: " << (accuracy_ > 0 ? std::to_string(accuracy_)
-        + "%" : "PENDING") << double_endl;
+
+    double acc = directional_accu();
+    if (acc > 0) {
+    cout << "MACHINE LEARNING DIRECTIONAL ACCURACY: " << acc << "%" << double_endl;
+    } else {
+        cout << "MACHINE LEARNING DIRECTIONAL ACCURACY: PENDING\n";
+        cout << "- Directional accuracy requires multiple evaluated predictions.\n";
+        cout << "- This metric becomes reliable after ~3–4 weeks of use.\n\n";
+    }
 
     cout <<
         "NOTE: THIS SYSTEM LEARNS WEEKLY USING ONLY YOUR LOCAL DATA\n"
         "PREDICTIONS ARE EVALUATED AND REFINED AS OUTCOMES ARRIVE\n"
         "NO CLOUD PROCESSING. NO SUBSCRIPTIONS" << double_endl;
 
-    cout << "ANALYSIS HAS FINISHED" << endl;
+    cout << "ANALYSIS HAS FINISHED\n";
+    return 0;
 }
-
-
-// static size_t find_date_index(const std::vector<DayRecord>& days,
-//                               const std::string& date)
-// {
-//     for (size_t i = 0; i < days.size(); i++) {
-//         if (days[i].date == date)
-//             return i;
-//     }
-//     return days.size();
-// }
-
-// static void print_min_data_message(size_t have, size_t need, const char* label)
-// {
-//     if (have >= need)
-//         return;
-
-//     cout << label << ": insufficient data\n";
-//     cout << "Have: " << have << " days\n";
-//     cout << "Need: " << need << " days\n";
-//     cout << "Missing: " << (need - have) << " days\n\n";
-// }
-
-// int main(int argc, char* argv[])
-// {
-//     if (argc < 3) {
-//         std::cerr << "usage: " << argv[0]
-//                   << " <path_to_csv> <prediction_date YYYY-MM-DD>\n";
-//         return 1;
-//     }
-
-//     const string csv_path = argv[1];
-//     const string pred_date = argv[2];
-
-//     std::vector<DayRecord> days = load_csv(csv_path);
-
-//     if (days.empty()) {
-//         std::cerr << "error: no valid data loaded\n";
-//         return 1;
-//     }
-
-//     cout << "loaded " << days.size() << " days of data\n";
-
-//     Combine result = compute_final_results(days);
-
-//     cout << "\n------- RECOVERY SUMMARY -------\n\n";
-
-//     switch (result.rec_sum.trend) {
-//         case Trend::Improving: cout << "Recovery is Improving\n\n"; break;
-//         case Trend::Stable:    cout << "Recovery is Stable\n\n";    break;
-//         case Trend::Declining: cout << "Recovery is Declining\n\n"; break;
-//     }
-
-//     if (result.rec_sum.confidence < 0.34)
-//         cout << "Confidence: Low (limited historical data)\n\n";
-//     else if (result.rec_sum.confidence < 0.67)
-//         cout << "Confidence: Moderate\n\n";
-//     else
-//         cout << "Confidence: High\n\n";
-
-//     cout << "Circadian Shift\n\n";
-//     cout << "Shift: " << result.cir_shift.shift_hours << " hours\n";
-//     cout << "or " << result.cir_shift.shift_hours * 60 << " minutes\n\n";
-//     cout << "Did this have a significant effect on your body: "
-//          << (result.cir_shift.significant ? "Yes" : "No") << "\n\n";
-
-//     // ---------------- Training data logging ----------------
-//     // Need at least WINDOW_SIZE history + LABEL_WINDOW future to generate labels safely.
-//     const size_t min_train_days = WINDOW_SIZE + LABEL_WINDOW;
-
-//     if (days.size() < min_train_days) {
-//         print_min_data_message(days.size(), min_train_days, "TRAINING DATA");
-//     } else {
-//         for (size_t i = 0; i + WINDOW_SIZE + LABEL_WINDOW <= days.size(); i++) {
-
-//             const size_t anchor = i + WINDOW_SIZE - 1;
-//             if (anchor >= days.size())
-//                 break;
-
-//             const string& date = days[anchor].date;
-
-//             if (has_seen_date(date))
-//                 continue;
-
-//             double y = compute_actual_hrv_delta(days, date, LABEL_WINDOW);
-
-//             // skip invalid / unavailable outcomes
-//             if (y == 0.0)
-//                 continue;
-
-//             std::vector<DayRecord> window(
-//                 days.begin() + i,
-//                 days.begin() + i + WINDOW_SIZE
-//             );
-
-//             arma::vec x = extract_features(window);
-//             if (!x.is_finite())
-//                 continue;
-
-//             log_training_data(date, x, y);
-//         }
-//     }
-
-//     // ---------------- Prediction ----------------
-//     size_t pred_index = find_date_index(days, pred_date);
-//     if (pred_index == days.size() - 1) {
-//         cout << "(Predicting forward from most recent data)"<< double_endl;
-//     } else if (pred_index == days.size()) {
-//         std::cerr << "error: prediction date not found" << double_endl;
-//         return 1;
-//     }
-
-//     std::vector<DayRecord> history(days.begin(),
-//                                    days.begin() + pred_index + 1);
-
-//     cout << "Prediction Date: " << pred_date << "\n\n";
-
-//     // Stop early if not enough history for feature window
-//     if (history.size() < WINDOW_SIZE) {
-//         print_min_data_message(history.size(), WINDOW_SIZE, "ML STATUS");
-//         cout << "Predicted HRV: N/A\n\n";
-//         cout << model_learning_sum() << "\n";
-//         cout << "ML Directional Accuracy: N/A\n\n";
-//         cout << "ANALYSIS HAS FINISHED\n";
-//         return 0;
-//     }
-
-//     PredictionResult prediction = train_and_predict(history);
-
-//     cout << explain_future(result.rec_sum,
-//                            result.cir_shift,
-//                            prediction) << "\n\n";
-
-//     double actual = compute_actual_hrv_delta(days, pred_date, LABEL_WINDOW);
-
-//     // ---------------- Error logging ----------------
-//     if (actual != 0.0) {
-//         double pred_value = prediction.prediction;
-//         double error = pred_value - actual;
-
-//         log_error(pred_date, pred_value, actual, error);
-
-//         cout << "Actual HRV change: " << actual << "\n";
-//         cout << "Prediction error: " << error << "\n\n";
-//     } else {
-//         cout << "Actual HRV over next "
-//              << LABEL_WINDOW << " days: PENDING\n\n";
-//     }
-
-//     cout << model_learning_sum() << "\n";
-
-//     double acc = directional_accu();
-//     if (acc < 0)
-//         cout << "ML Directional Accuracy: N/A\n\n";
-//     else
-//         cout << "ML Directional Accuracy: " << acc << "%\n\n";
-
-//     cout << "\nNote: These insights are generated locally using your own data.\n"
-//             "This projection improves automatically as more weeks of data are added.\n"
-//             "No cloud processing. No subscriptions. No external health models.\n\n";
-
-//     cout << "ANALYSIS HAS FINISHED" << endl;
-
-//     return 0;
-// }

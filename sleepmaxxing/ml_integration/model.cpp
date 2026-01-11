@@ -40,36 +40,48 @@ void run_pipeline(std::vector<DayRecord> &days)
 
 PredictionResult train_and_predict(const std::vector<DayRecord> &days)
 {
-    arma::mat X;
-    arma::rowvec y;
-
-    std::string latest_date = days.back().date;
-    auto dataset = build_dataset(days);
-
-    if (dataset.size() < MIN_SAMPLES)
-        return {0.0, arma::vec(), arma::vec()};
+    arma::mat X; arma::rowvec y;
 
     load_training_data(X, y);
-    if (X.n_cols < MIN_SAMPLES)
-        return {0.0, arma::vec(), arma::vec()};
 
-    // norm
+    if (X.n_cols < MIN_SAMPLES) {
+        std::cerr << "WARNING: Insufficient training samples (" << X.n_cols <<
+            " < " << MIN_SAMPLES << ")\n";
+        return {0.0, arma::vec(), arma::vec()};
+    }
+
+    //norm training set
     NormStats stats = compute_norm_stats(X);
     normalize(X, stats);
 
-    // ridge
-    LinearRegression rr(X, y, RIDGE_LAM);
+    //train rr
+    mlpack::LinearRegression rr(X, y, RIDGE_LAM);
 
-    //norm sample
-    arma::vec latest_x = extract_features(days);
+    //build prediction sample using most recent window size
+    if (days.size() < WINDOW_SIZE) return {0.0, arma::vec(), arma::vec()};
+
+    std::vector<DayRecord> recent(days.end() - WINDOW_SIZE, days.end());
+    arma::vec latest_x = extract_features(recent);
+    if (!latest_x.is_finite()) return {0.0, arma::vec(), arma::vec()};
+
     normalize_vector(latest_x, stats);
 
-    arma::rowvec prediction;
-    rr.Predict(latest_x, prediction);
+    //predict
+    arma::mat point(latest_x.n_elem, 1);
+    point.col(0) = latest_x;
 
-    double predicted_delta = std::clamp(predicted_delta, -10.0, 10.0);
-    //learned weight
-    arma::vec weights = rr.Parameters().subvec(0, latest_x.n_elem -1);
+    arma::rowvec pred_row;
+    rr.Predict(point, pred_row);
 
+    double predicted_delta =pred_row(0);
+    if (!std::isfinite(predicted_delta)) predicted_delta = 0.0;
+
+    predicted_delta = std::clamp(predicted_delta, -10.0, 10.0);
+
+    // keep only weights
+    arma::vec params = rr.Parameters();
+    arma::vec weights;
+    if (params.n_elem == latest_x.n_elem + 1) weights = params.subvec(1, params.n_elem - 1);
+    else weights = params; // fallback
     return {predicted_delta, weights, latest_x};
 }

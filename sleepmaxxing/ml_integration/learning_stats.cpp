@@ -8,22 +8,34 @@ std::string model_learning_sum() {
     auto errors = load_pred_errors();
 
     if (errors.empty()) {
-        return "Model learning status:\n"
-        "- Baseline collected\n"
-        "- Awaiting first evaluation window\n";
+        return
+            "Model learning status:\n"
+            "- Baseline collected\n"
+            "- Awaiting first evaluation window\n";
     }
-    // adds everything
-    double early_avg = std::accumulate(errors.begin(), errors.begin() + errors.size() / 2, 0.0) /
-        (errors.size() / 2);
-
-    double recent_avg = std::accumulate(errors.begin() + errors.size() / 2, errors.end(), 0.0) /
-        (errors.size() - errors.size() /2);
 
     std::ostringstream out;
-
     out << "Model learning status:\n";
-    out << "- Historical samples: " << errors.size() << std::endl;
-    out << "- Mean prediction error (7d HRV): " << early_avg << "->" << recent_avg << std::endl;
+    out << "- Historical samples: " << errors.size() << "\n";
+
+    if (errors.size() == 1) {
+        out << "- Mean prediction error (7d HRV): "
+            << errors[0] << "\n";
+        return out.str();
+    }
+
+    size_t mid = errors.size() / 2;
+
+    double early_avg =
+        std::accumulate(errors.begin(),
+                        errors.begin() + mid, 0.0) / mid;
+
+    double recent_avg =
+        std::accumulate(errors.begin() + mid,
+                        errors.end(), 0.0) / (errors.size() - mid);
+
+    out << "- Mean prediction error (7d HRV): "
+        << early_avg << " -> " << recent_avg << "\n";
 
     return out.str();
 }

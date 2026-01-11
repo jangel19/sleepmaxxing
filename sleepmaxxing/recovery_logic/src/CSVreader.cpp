@@ -71,23 +71,22 @@ std::vector<DayRecord> load_csv(const std::string& path){
         }
 
         std::getline(ss, sleep_min_str, ',');
-        user_data.sleep_min = int_parser(sleep_min_str, 0, 1440);
+    user_data.sleep_min = int_parser(sleep_min_str, -1440, 1440);
 
-        std::getline(ss, wake_min_str, ',');
-        user_data.wake_min = wake_parser(wake_min_str);
+    std::getline(ss, wake_min_str, ',');
+    user_data.wake_min = int_parser(wake_min_str, -1440, 1440);
 
-        std::getline(ss, activity_str, ',');
-        user_data.activity = double_parser(activity_str);
+    std::getline(ss, hrv_str, ',');
+    user_data.hrv = double_parser(hrv_str);
 
-        std::getline(ss, hrv_str, ',');
-        user_data.hrv = double_parser(hrv_str);
+    std::getline(ss, rhr_str, ',');
+    user_data.rhr = double_parser(rhr_str);
 
-        std::getline(ss, stress_str, ',');
-        user_data.stress = double_parser(stress_str);
+    std::getline(ss, stress_str, ',');
+    user_data.stress = double_parser(stress_str);
 
-        std::getline(ss, rhr_str, ',');
-        user_data.rhr = double_parser(rhr_str);
-
+    std::getline(ss, activity_str, ',');
+    user_data.activity = int_parser(activity_str, 0, 1);
         data.push_back(user_data);
 
         #if DEBUG

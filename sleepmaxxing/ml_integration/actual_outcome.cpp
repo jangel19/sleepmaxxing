@@ -30,7 +30,7 @@ double compute_actual_hrv_delta(const std::vector<DayRecord>& days, const std::s
         if (days[i].hrv.has_value()) future.push_back(days[i].hrv.value());
     }
 
-    if (base.size() < 2 || future.size() < 2) return 0.0; //not enough data
+    if (base.empty() || future.empty()) return 0.0; //not enough data
 
     auto mean = [](const std::vector<double>& v) {
         double s = 0.0;
