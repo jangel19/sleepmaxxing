@@ -1,153 +1,216 @@
 # Sleepmaxxing
+**Local-first recovery intelligence built in C++**
 
-Sleepmaxxing is a **C++ analytical engine** for detecting **recovery trends** and **circadian rhythm shifts** using exported wearable data (e.g., Garmin, WHOOP, Amazfit).
+Sleepmaxxing is a **local, explainable recovery analysis engine** that learns from your personal health data over time.  
+It analyzes sleep, HRV, resting heart rate, stress, and activity to generate:
 
-The project is intentionally designed to be:
-- Deterministic
-- Explainable
-- Robust to missing data
-- Free of black-box machine learning
+- Weekly recovery summaries
+- A recovery score
+- Short-term HRV predictions
+- Actionable, human-readable guidance
+- Model reliability metrics that improve as the system learns
 
-All insights are derived **strictly from user-provided data**.
-
----
-
-## Motivation
-
-Sleepmaxxing started as a personal project during a university finals period where my sleep quality significantly declined.
-Despite wearing a Garmin device and tracking metrics such as sleep duration, HRV, and resting heart rate, the platform’s summaries did not clearly explain **how much this change in sleep was affecting my recovery over time**.
-
-This project was built to answer questions such as:
-- How does sustained short sleep affect recovery trends?
-- Are changes gradual or abrupt?
-- Are observed declines meaningful or just day-to-day noise?
-
-Rather than relying on opaque “readiness scores,” Sleepmaxxing focuses on **explicit comparisons between recent behavior and a short-term baseline**, using transparent and explainable logic.
+No cloud. No subscriptions. No external user data.  
+Everything runs **locally on your machine**.
 
 ---
 
-## Data Input
+## What This Project Does
 
-Sleepmaxxing operates on **CSV exports** provided directly by the user.
+Sleepmaxxing is designed to simulate how a real user would use a recovery product:
 
-Typical sources include:
-- Garmin health data exports
-- WHOOP data exports
-- Other wearable platforms that provide daily summaries
+1. You log daily health data in a CSV
+2. The system collects a baseline (first few weeks)
+3. It begins making **weekly predictions**
+4. Each prediction is evaluated against real outcomes
+5. The model adapts and becomes more reliable over time
 
-The engine does not collect, store, or fetch data automatically.
-Users retain full control over what data is analyzed.
-
----
-
-## Core Design (v1)
-
-### Time Windowing
-
-Analysis is based on **two adjacent time windows**:
-- **Baseline window:** 14 days
-- **Recent window:** 14 days
-
-The engine compares recent behavior against the immediately preceding baseline to detect **short-term changes** while minimizing seasonal and long-term drift.
-
-A minimum of **5 valid days per window** is required for any metric to be considered.
+After ~5 evaluated weeks, you start seeing **accuracy metrics** instead of placeholders.
 
 ---
 
-### Recovery Trend Analysis
+## Demo
 
-Recovery trends are computed using the following metrics when available:
-- Heart Rate Variability (HRV)
-- Resting Heart Rate (RHR)
-- Stress
-
-Each metric is analyzed independently using:
-- Median (robust center)
-- Median Absolute Deviation (robust scale)
-
-Metrics contribute standardized effect sizes that are combined to determine whether recovery is:
-- Improving
-- Stable
-- Declining
-
-All contributions are explainable and directly traceable to observed data.
+An 8-week end-to-end demo (compile → run → prediction → explanation) is included here:  
+https://www.loom.com/share/05b3960518ab4bc0ae42a1ede4591d17
 
 ---
 
-### Circadian Shift Detection
+## Input Data Format
 
-Wake time is treated as a **circular variable** on a 24-hour clock.
+Sleepmaxxing reads a CSV file with **one row per day**.
 
-The engine:
-- Converts wake times to angles
-- Computes circular means
-- Measures the shortest phase difference between windows
+### CSV Columns
 
-Additional safeguards include:
-- Minimum data requirements
-- Stability checks using circular resultant magnitude
+```text
+date,sleep_min,wake_min,hrv,rhr,stress,activity
+```
+---
+## Column Definitions
 
-The result indicates whether wake time has shifted earlier or later, and whether the shift is significant.
+| Column     | Meaning |
+|------------|---------|
+| `date`     | Calendar day of the record (YYYY-MM-DD) |
+| `sleep_min` | Difference from your *normal* sleep duration (minutes) |
+| `wake_min` | Difference from your *normal* wake time (minutes) |
+| `hrv`      | Heart Rate Variability (milliseconds) |
+| `rhr`      | Resting Heart Rate (beats per minute) |
+| `stress`  | Daily stress score (1 = low, 5 = high) |
+| `activity` | Total steps for the day |
 
 ---
 
-## Output
+### Important
 
-The engine produces:
-- Recovery trend classification
-- Circadian shift (in hours)
-- Confidence indicators
-- Supporting statistics for transparency
+- `sleep_min` and `wake_min` are **relative values**, not raw timestamps
+- This allows the system to reason about consistency and deviation, not absolute schedules.
 
-All outputs are deterministic and reproducible.
+## Example Row
 
----
+```csv
+2025-01-01,10,-5,55,65,3,6500
+```
 
-## Architecture
+###Interpretation
 
-The system is modular and intentionally layered:
-
-- CSV ingestion and validation
-- Robust statistics
-- Windowed comparisons
-- Trend inference
-- Final result aggregation
-
-Core analysis logic is written in **modern C++ (C++17+)**.
+- Slept 10 minutes more than usual
+- Woke up 5 minutes earlier than usual
+- HRV = 55 ms
+- RHR = 65 bpm
+- Moderate stress
+- 6,500 steps
 
 ---
 
-## What Sleepmaxxing Is Not
+## How to Build & Run
 
-- Not a medical device
-- Not a diagnostic tool
-- Not a machine-learning model
-- Not a real-time tracker
+### 1. Dependencies
 
-This project focuses on **explainable trend analysis**, not prediction or prescription.
+#### C++ Dependencies
+
+You must install:
+
+- **mlpack (C++)**
+- **Armadillo (C++)**
+
+##### On macOS (Homebrew)
+
+```bash
+brew install mlpack armadillo
+```
+#### On Linux
+```bash
+sudo apt install libmlpack-dev libarmadillo-dev
+```
+---
+## 2. Build the Project
+
+From the project root:
+
+```bash
+make clean
+make
+```
+This builds the sleepmaxxing binary.
+
+## 3. Run Sleepmaxxing
+
+```bash
+./sleepmaxxing data/myhealth.csv YYYY-MM-DD
+```
+###Example
+```bash
+./sleepmaxxing data/myhealth.csv 2025-02-25
+```
+The date must exist in the CSV and represents the “current week” the system should analyze.
+---
+## What You’ll See
+
+A typical run outputs:
+
+- **Recovery Summary** (Improving / Stable / Declining)
+- **Recovery Score** (0–100)
+- **Confidence level**
+- **Predicted HRV change** (7-day horizon)
+- **Plain-English interpretation**
+- **Primary physiological drivers**
+- **Actionable guidance**
+- **Model learning & reliability stats**
 
 ---
 
-## Planned Extensions (v2+)
+### Example
 
-Potential future improvements include:
-- User-selectable comparison windows
-- Custom baseline date selection within a CSV
-- Support for additional wearable export formats
-- Optional CLI interface
-- Optional WebAssembly build for browser-based demos
-- Optional direct API integrations (e.g., Garmin API), if access permits
+```text
+RECOVERY SCORE FOR THIS WEEK: 80
+Strong Recovery
 
-The current v1 intentionally favors strong defaults and minimal configuration.
+PREDICTED HRV DELTA (next 7 days): +1.11 ms
+```
 
 ---
+## Model Reliability Explained
 
-## License
+Sleepmaxxing is **intentionally conservative** with metrics.
 
-Open source.
+- Predictions are evaluated **only when real outcomes exist**
+- Accuracy metrics appear **after enough evaluated predictions**
+- Early weeks prioritize **transparency over false confidence**
+### Typical progression
+
+- **Weeks 1–3** → Baseline collection  
+- **Weeks 4–5** → Predictions + evaluation  
+- **Week 5+** → Directional accuracy appears and improves
 ---
+## Features (V1)
 
-## Disclaimer
+- **Local-only C++ recovery engine**
+- **Weekly HRV prediction** (ridge regression via mlpack)
+- **Recovery score** (0–100)
+- **Driver attribution** (sleep, HRV, RHR, stress)
+- **Confidence-aware explanations**
+- **Incremental learning from past errors**
+- **CSV-based data ingestion**
+- **Clean Makefile-based build**
 
-Sleepmaxxing provides observational insights based on historical data only.
-It is not intended to diagnose, treat, or prevent any medical condition.
+---
+## Planned V2 Improvements
+
+- **Day-to-day predictions** (not just weekly)
+
+- **Richer activity modeling**
+  - Currently: steps only
+  - Planned: intensity, training load, recovery days
+
+- **More accurate ML models**
+  - Feature scaling
+  - Better regularization
+  - Per-user adaptation
+
+- **Improved recovery score calibration**
+
+- **Graphs & visualization**
+  - Trends
+  - Prediction vs outcome
+  - HRV trajectories
+
+**Graph integration coming soon**
+---
+## Philosophy
+
+Sleepmaxxing is built around a simple idea:
+
+> Personal health models should be **local**, **explainable**, and **earned over time**.
+
+No black boxes.  
+No dashboards hiding uncertainty.  
+No cloud dependency.
+---
+## Author
+
+Built by **Jordi Lopez**  
+Early-stage systems + ML project focused on recovery intelligence.
+
+If you’re interested in health tech, systems programming, or applied ML, feel free to reach out via my website:
+
+ **https://jordisworld.me**
