@@ -17,6 +17,8 @@ struct RecoverySummary {
     Trend trend;
     double confidence;
     std::vector<MetricDriver> drivers;
+    // added recovery score
+    int rec_score;
 };
 
 

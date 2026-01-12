@@ -141,6 +141,12 @@ int main(int argc, char* argv[]) {
         case Trend::Declining: cout << "Recovery is Declining. ATTENTION IS NEEDED" << double_endl; break;
     }
 
+    // new added rec score section
+    cout << "RECOVERY SCORE FOR THIS WEEK: " << result.rec_sum.rec_score << endl;
+    if (result.rec_sum.rec_score >= 75) cout << "Strong Recovery" << double_endl;
+    else if (result.rec_sum.rec_score >= 50) cout << "Moderate Recovery" << double_endl;
+    else cout << "RECOVERY NEEDS ATTENTION" << double_endl;
+
     if (result.rec_sum.confidence < 0.34) cout << "CONFIDENCE: Low\n\n";
     else if (result.rec_sum.confidence < 0.67) cout << "CONFIDENCE: Moderate\n\n";
     else cout << "CONFIDENCE: High\n\n";
@@ -211,7 +217,22 @@ int main(int argc, char* argv[]) {
         cout << "- The model expects your recovery to IMPROVE over the next week.\n";
         cout << "- An estimated increase of " << pred.prediction
             << " ms in HRV suggests improving physiological resilience.\n";
-    } cout << double_endl;
+    }
+
+    if (pred.prediction >= 5.0)
+        cout <<"- Strong recovery improvement expected. Your body is adapting well to current habits!\n";
+    else if (pred.prediction >= 2.0)
+        cout << "- Recovery is trending upward. Small but meaningful improvements are expected.\n";
+    else if (pred.prediction > -2.0)
+        cout << "- Recovery is expected to remain stable. Day-to-day variation is normal\n";
+    else if (pred.prediction > -5.0)
+        cout << "- Recovery may decline slightly. Early signs of fatigue are present.\n";
+    else
+        cout << "- Significan recovery decline expected. "
+            << "This reflects accumulated stress or insufficient recovery.\n";
+
+
+    cout << "\n";
 
     log_predictions(run_date, pred.prediction, pred_class);
 
@@ -220,22 +241,23 @@ int main(int argc, char* argv[]) {
     auto rec = generate_recommendations(result.rec_sum, result.cir_shift);
 
     if (!rec.empty()) {
-        cout << "\n---------------------ACTIONABLE GUIDANCE---------------------\n\n";
+        cout << "\n---------------------ACTIONABLE GUIDANCE---------------------" << double_endl;
+        cout << "THIS WEEKS FOCUS: " << endl;
         for (const auto& r : rec) {
             cout << "- " << r << "\n";
         }
         cout << "\n";
     }
 
-    cout << model_learning_sum() << endl;
+    cout << model_learning_sum() << std::flush;
 
     double acc = directional_accu();
     if (acc > 0) {
-    cout << "MACHINE LEARNING DIRECTIONAL ACCURACY: " << acc << "%" << double_endl;
+        cout << "- Machine Learning accuracy: " << acc << "%" << double_endl;
     } else {
-        cout << "MACHINE LEARNING DIRECTIONAL ACCURACY: PENDING\n";
-        cout << "- Directional accuracy requires multiple evaluated predictions.\n";
-        cout << "- This metric becomes reliable after ~3–4 weeks of use.\n\n";
+        cout << "- Machine Learning accuracy: PENDING\n";
+        cout << "   - Directional accuracy requires multiple evaluated predictions.\n";
+        cout << "   - This metric becomes reliable after ~3–4 weeks of use.\n\n";
     }
 
     cout <<

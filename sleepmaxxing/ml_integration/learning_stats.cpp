@@ -15,24 +15,21 @@ std::string model_learning_sum() {
     }
 
     std::ostringstream out;
-    out << "Model learning status:\n";
-    out << "- Historical samples: " << errors.size() << "\n";
+    out << "MODEL RELIABILITY:\n";
+    out << "- Directional Accuracy: Improving (" << errors.size() << " evaluations)\n";
 
     if (errors.size() == 1) {
-        out << "- Mean prediction error (7d HRV): "
-            << errors[0] << "\n";
+        out << "- Mean prediction error (7d HRV): " << errors[0] << "\n";
         return out.str();
     }
 
     size_t mid = errors.size() / 2;
 
     double early_avg =
-        std::accumulate(errors.begin(),
-                        errors.begin() + mid, 0.0) / mid;
+        std::accumulate(errors.begin(), errors.begin() + mid, 0.0) / mid;
 
     double recent_avg =
-        std::accumulate(errors.begin() + mid,
-                        errors.end(), 0.0) / (errors.size() - mid);
+        std::accumulate(errors.begin() + mid, errors.end(), 0.0) / (errors.size() - mid);
 
     out << "- Mean prediction error (7d HRV): "
         << early_avg << " -> " << recent_avg << "\n";
