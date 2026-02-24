@@ -1,4 +1,4 @@
-# Sleepmaxxing
+# PhysioML – Adaptive Recovery Modeling Platform (Sleepmaxxing)
 **Local-first recovery intelligence built in C++**
 
 Sleepmaxxing is a **local, explainable recovery analysis engine** that learns from your personal health data over time.  
